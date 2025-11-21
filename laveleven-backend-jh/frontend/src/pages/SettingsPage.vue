@@ -1,8 +1,9 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
-import { Plus, X, Search, Trash2, ChevronLeft } from 'lucide-vue-next';
-import TopBar from '../components/TopBar.vue';
-import Sidebar from '../components/Sidebar.vue';
+import { computed, ref, watch, onMounted } from "vue";
+import { Plus, X, Search, Trash2, ChevronLeft } from "lucide-vue-next";
+import TopBar from "../components/TopBar.vue";
+import Sidebar from "../components/Sidebar.vue";
+import { userAPI } from "../services/api";
 
 const props = defineProps({
   currentUser: {
@@ -26,24 +27,26 @@ const props = defineProps({
 const showUserModal = ref(false);
 const selectedUser = ref(null);
 const selectedUserIds = ref([]);
-const teamSelect = ref('');
-const teamInput = ref('');
+const teamSelect = ref("");
+const teamInput = ref("");
+const isLoading = ref(false);
+const users = ref([]);
+
 const newUser = ref({
-  userId: '',
-  password: '',
-  confirmPw: '',
-  name: '',
-  email: '',
-  role: '',
+  userId: "",
+  password: "",
+  confirmPw: "",
+  name: "",
+  email: "",
+  role: "",
 });
 
 const searchFilters = ref({
-  userId: '',
-  name: '',
-  team: '',
-  email: '',
+  userId: "",
+  name: "",
+  team: "",
+  email: "",
 });
-
 
 const regex = {
   userId: /^[a-zA-Z0-9]*$/,
@@ -53,49 +56,98 @@ const regex = {
   pw: /^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*]).{8,20}$/,
 };
 
+// 사용자 목록 불러오기
+const loadUsers = async () => {
+  isLoading.value = true;
+  try {
+    console.log("🔄 사용자 목록 로드 중...");
+    const response = await userAPI.getAllUsers();
+
+    users.value = response.data.map((user) => ({
+      id: user.id,
+      userId: user.userId,
+      name: user.name || user.userId,
+      email: user.email,
+      role: user.role,
+      team: user.team || "",
+    }));
+
+    console.log("✅ 사용자 목록 로드 완료:", users.value.length, "명");
+    console.log("👥 사용자 목록:", users.value);
+  } catch (error) {
+    console.error("❌ 사용자 목록 로드 실패:", error);
+    alert(
+      error.response?.data?.error || "사용자 목록을 불러오는데 실패했습니다."
+    );
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// 컴포넌트 마운트 시 사용자 로드
+onMounted(() => {
+  loadUsers();
+});
+
 const getUserWorkHistory = () => [];
 
-const usersList = computed(() => (Array.isArray(props.users) ? props.users : []));
+const usersList = computed(() =>
+  Array.isArray(users.value) ? users.value : []
+);
 
-const handleDeleteUser = (userId) => {
-  if (!props.setUsers) return;
-  if (window.confirm('정말로 사용자를 삭제하시겠습니까?')) {
-    const updated = usersList.value.filter((u) => u.id !== userId);
-    props.setUsers(updated);
+const handleDeleteUser = async (userId) => {
+  if (!window.confirm("정말로 사용자를 삭제하시겠습니까?")) return;
+
+  try {
+    console.log("🗑️ 사용자 삭제:", userId);
+    await userAPI.deleteUser(userId);
+    alert("사용자가 비활성화되었습니다.");
+    await loadUsers(); // 목록 새로고침
+  } catch (error) {
+    console.error("❌ 사용자 삭제 실패:", error);
+    alert(error.response?.data?.error || "사용자 삭제에 실패했습니다.");
   }
 };
 
 const applySearchRegex = (field, value) => {
-  if (value === '') return value;
+  if (value === "") return value;
   if (regex[field].test(value)) return value;
   return searchFilters.value[field];
 };
 
 const filteredUsers = computed(() =>
   usersList.value.filter((user) => {
-    const matchUserId = user.userId.includes(searchFilters.value.userId);
-    const matchName = user.name.includes(searchFilters.value.name);
-    const matchTeam = (user.team || '').includes(searchFilters.value.team);
-    const matchEmail = user.email.includes(searchFilters.value.email);
+    const matchUserId = user.userId
+      .toLowerCase()
+      .includes(searchFilters.value.userId.toLowerCase());
+    const matchName = user.name
+      .toLowerCase()
+      .includes(searchFilters.value.name.toLowerCase());
+    const matchTeam = (user.team || "")
+      .toLowerCase()
+      .includes(searchFilters.value.team.toLowerCase());
+    const matchEmail = user.email
+      .toLowerCase()
+      .includes(searchFilters.value.email.toLowerCase());
     return matchUserId && matchName && matchTeam && matchEmail;
-  }),
+  })
 );
 
 const handleClearFilters = () => {
-  searchFilters.value = { userId: '', name: '', team: '', email: '' };
+  searchFilters.value = { userId: "", name: "", team: "", email: "" };
 };
 
 const resetNewUser = () => {
   newUser.value = {
-    userId: '',
-    password: '',
-    confirmPw: '',
-    name: '',
-    email: '',
-    role: '',
+    userId: "",
+    password: "",
+    confirmPw: "",
+    name: "",
+    email: "",
+    role: "",
   };
-  teamSelect.value = '';
-  teamInput.value = '';
+  teamSelect.value = "";
+  teamInput.value = "";
 };
 
 const closeModal = () => {
@@ -103,62 +155,69 @@ const closeModal = () => {
   resetNewUser();
 };
 
-const handleAddUser = () => {
-  if (!props.setUsers) return;
+const handleAddUser = async () => {
   if (!/^[a-zA-Z0-9]{4,20}$/.test(newUser.value.userId)) {
-    alert('아이디 규칙을 확인해주세요.');
+    alert("아이디는 영문/숫자 4~20자로 입력해주세요.");
     return;
   }
   if (!regex.pw.test(newUser.value.password)) {
-    alert('비밀번호 규칙을 확인해주세요.');
+    alert("비밀번호는 영문+숫자+특수문자 조합 8~20자로 입력해주세요.");
     return;
   }
   if (newUser.value.password !== newUser.value.confirmPw) {
-    alert('비밀번호가 일치하지 않습니다.');
+    alert("비밀번호가 일치하지 않습니다.");
+    return;
+  }
+  if (!newUser.value.name) {
+    alert("이름을 입력해주세요.");
     return;
   }
   if (!regex.email.test(newUser.value.email)) {
-    alert('이메일 형식이 올바르지 않습니다.');
+    alert("이메일 형식이 올바르지 않습니다.");
+    return;
+  }
+  if (!newUser.value.role) {
+    alert("권한을 선택해주세요.");
     return;
   }
 
-  const dup = usersList.value.some((u) => u.userId === newUser.value.userId);
-  if (dup) {
-    alert('이미 존재하는 아이디입니다.');
-    return;
-  }
+  try {
+    console.log("➕ 사용자 생성:", newUser.value.userId);
 
-  const newId = usersList.value.length ? Math.max(...usersList.value.map((u) => u.id || 0)) + 1 : 1;
-  const updatedUsers = [
-    ...usersList.value,
-    {
-      id: newId,
+    const userData = {
       userId: newUser.value.userId,
       password: newUser.value.password,
       name: newUser.value.name,
       email: newUser.value.email,
       role: newUser.value.role,
       team: teamInput.value,
-    },
-  ];
-  props.setUsers(updatedUsers);
+    };
 
-  closeModal();
+    await userAPI.createUser(userData);
+    alert("사용자가 생성되었습니다!");
+    closeModal();
+    await loadUsers(); // 목록 새로고침
+  } catch (error) {
+    console.error("❌ 사용자 생성 실패:", error);
+    alert(error.response?.data?.error || "사용자 생성에 실패했습니다.");
+  }
 };
 
 const handleCheckDuplicate = () => {
   if (!/^[a-zA-Z0-9]{4,20}$/.test(newUser.value.userId)) {
-    alert('아이디 규칙을 확인해주세요.');
+    alert("아이디 규칙을 확인해주세요.");
     return;
   }
 
   const dup = usersList.value.some((u) => u.userId === newUser.value.userId);
-  alert(dup ? '이미 존재하는 아이디입니다' : '사용 가능한 아이디입니다');
+  alert(dup ? "이미 존재하는 아이디입니다" : "사용 가능한 아이디입니다");
 };
 
 const isAllSelected = computed(() => {
   if (!filteredUsers.value.length) return false;
-  return filteredUsers.value.every((user) => selectedUserIds.value.includes(user.id));
+  return filteredUsers.value.every((user) =>
+    selectedUserIds.value.includes(user.id)
+  );
 });
 
 const toggleSelectAll = (checked) => {
@@ -177,20 +236,40 @@ const toggleSelectUser = (userId) => {
   }
 };
 
-const handleDeleteSelected = () => {
-  if (!props.setUsers || selectedUserIds.value.length === 0) return;
-  if (!window.confirm(`선택한 ${selectedUserIds.value.length}명의 사용자를 삭제하시겠습니까?`)) return;
-  const updated = usersList.value.filter((user) => !selectedUserIds.value.includes(user.id));
-  selectedUserIds.value = [];
-  props.setUsers(updated);
+const handleDeleteSelected = async () => {
+  if (selectedUserIds.value.length === 0) return;
+  if (
+    !window.confirm(
+      `선택한 ${selectedUserIds.value.length}명의 사용자를 삭제하시겠습니까?`
+    )
+  )
+    return;
+
+  try {
+    console.log("🗑️ 선택 사용자 삭제:", selectedUserIds.value);
+
+    // 각 사용자 삭제 API 호출
+    await Promise.all(
+      selectedUserIds.value.map((id) => userAPI.deleteUser(id))
+    );
+
+    selectedUserIds.value = [];
+    alert("선택한 사용자가 삭제되었습니다.");
+    await loadUsers(); // 목록 새로고침
+  } catch (error) {
+    console.error("❌ 선택 사용자 삭제 실패:", error);
+    alert(error.response?.data?.error || "사용자 삭제에 실패했습니다.");
+  }
 };
 
-// ✔ watch를 여기로 이동!
+// watch: 사용자 목록이 변경되면 선택된 ID 정리
 watch(
-  () => usersList.value,
+  () => users.value,
   (list) => {
     const validIds = new Set(list.map((user) => user.id));
-    selectedUserIds.value = selectedUserIds.value.filter((id) => validIds.has(id));
+    selectedUserIds.value = selectedUserIds.value.filter((id) =>
+      validIds.has(id)
+    );
   },
   { deep: true }
 );
@@ -204,7 +283,13 @@ watch(
       <Sidebar :on-navigate="props.onNavigate" current-page="settings" />
 
       <div class="flex-1 overflow-auto bg-[#f5f5f5] p-6">
-        <div v-if="selectedUser" class="max-w-6xl mx-auto bg-white border">
+        <!-- 로딩 상태 -->
+        <div v-if="isLoading" class="flex items-center justify-center h-full">
+          <div class="text-[#999] text-sm">사용자 목록을 불러오는 중...</div>
+        </div>
+
+        <!-- 사용자 상세 (작업 이력) -->
+        <div v-else-if="selectedUser" class="max-w-6xl mx-auto bg-white border">
           <div class="border-b px-4 py-3 flex items-center gap-2">
             <button @click="selectedUser = null" class="text-[#666]">
               <ChevronLeft class="w-4 h-4" />
@@ -216,16 +301,31 @@ watch(
 
           <div class="p-4 text-xs">
             <div class="grid grid-cols-2 gap-4 mb-4">
-              <div><span class="text-[#666]">아이디:</span> <span class="ml-2">{{ selectedUser.userId }}</span></div>
-              <div><span class="text-[#666]">이름:</span> <span class="ml-2">{{ selectedUser.name }}</span></div>
-              <div><span class="text-[#666]">팀:</span> <span class="ml-2">{{ selectedUser.team }}</span></div>
-              <div><span class="text-[#666]">이메일:</span> <span class="ml-2">{{ selectedUser.email }}</span></div>
+              <div>
+                <span class="text-[#666]">아이디:</span>
+                <span class="ml-2">{{ selectedUser.userId }}</span>
+              </div>
+              <div>
+                <span class="text-[#666]">이름:</span>
+                <span class="ml-2">{{ selectedUser.name }}</span>
+              </div>
+              <div>
+                <span class="text-[#666]">팀:</span>
+                <span class="ml-2">{{ selectedUser.team }}</span>
+              </div>
+              <div>
+                <span class="text-[#666]">이메일:</span>
+                <span class="ml-2">{{ selectedUser.email }}</span>
+              </div>
             </div>
 
             <div class="border-t pt-4">
               <h3 class="font-bold mb-3">작업 이력</h3>
 
-              <div v-if="getUserWorkHistory(selectedUser.userId).length === 0" class="text-center py-8 text-[#999]">
+              <div
+                v-if="getUserWorkHistory(selectedUser.userId).length === 0"
+                class="text-center py-8 text-[#999]"
+              >
                 작업 이력이 없습니다
               </div>
               <table v-else class="w-full">
@@ -239,7 +339,9 @@ watch(
                 </thead>
                 <tbody>
                   <tr
-                    v-for="(history, idx) in getUserWorkHistory(selectedUser.userId)"
+                    v-for="(history, idx) in getUserWorkHistory(
+                      selectedUser.userId
+                    )"
                     :key="idx"
                     class="border-b"
                   >
@@ -254,6 +356,7 @@ watch(
           </div>
         </div>
 
+        <!-- 사용자 목록 -->
         <div v-else class="max-w-6xl mx-auto space-y-4">
           <div class="bg-white border">
             <div class="border-b px-4 py-3 flex items-center justify-between">
@@ -276,7 +379,10 @@ watch(
                     :value="searchFilters.userId"
                     @input="
                       (event) =>
-                        (searchFilters.userId = applySearchRegex('userId', event.target.value))
+                        (searchFilters.userId = applySearchRegex(
+                          'userId',
+                          event.target.value
+                        ))
                     "
                     class="w-full px-2 py-1.5 border"
                     placeholder="아이디 검색"
@@ -290,7 +396,10 @@ watch(
                     :value="searchFilters.name"
                     @input="
                       (event) =>
-                        (searchFilters.name = applySearchRegex('name', event.target.value))
+                        (searchFilters.name = applySearchRegex(
+                          'name',
+                          event.target.value
+                        ))
                     "
                     class="w-full px-2 py-1.5 border"
                     placeholder="이름 검색"
@@ -304,7 +413,10 @@ watch(
                     :value="searchFilters.team"
                     @input="
                       (event) =>
-                        (searchFilters.team = applySearchRegex('team', event.target.value))
+                        (searchFilters.team = applySearchRegex(
+                          'team',
+                          event.target.value
+                        ))
                     "
                     class="w-full px-2 py-1.5 border"
                     placeholder="부서"
@@ -316,7 +428,9 @@ watch(
                   <input
                     type="text"
                     :value="searchFilters.email"
-                    @input="(event) => (searchFilters.email = event.target.value)"
+                    @input="
+                      (event) => (searchFilters.email = event.target.value)
+                    "
                     class="w-full px-2 py-1.5 border"
                     placeholder="이메일@gmail.com"
                   />
@@ -343,7 +457,8 @@ watch(
             <div class="p-4 text-xs">
               <div class="flex items-center justify-between mb-3">
                 <div class="text-[#666] text-xs">
-                  총 {{ filteredUsers.length }}명 / 선택 {{ selectedUserIds.length }}명
+                  총 {{ filteredUsers.length }}명 / 선택
+                  {{ selectedUserIds.length }}명
                 </div>
                 <button
                   type="button"
@@ -355,25 +470,33 @@ watch(
                 </button>
               </div>
 
-              <div v-if="filteredUsers.length === 0" class="text-center py-8 text-[#999]">
-                {{ usersList.length === 0 ? '등록된 사용자가 없습니다~!!^^' : '검색 결과가 없습니다' }}
+              <div
+                v-if="filteredUsers.length === 0"
+                class="text-center py-8 text-[#999]"
+              >
+                {{
+                  usersList.length === 0
+                    ? "등록된 사용자가 없습니다"
+                    : "검색 결과가 없습니다"
+                }}
               </div>
               <table v-else class="w-full">
                 <thead class="bg-[#f5f5f5]">
                   <tr>
                     <th class="px-4 py-2 text-center w-10">
-                    <input
-                      type="checkbox"
-                      class="w-3 h-3"
-                      :checked="isAllSelected"
-                      @change.stop="toggleSelectAll($event.target.checked)"
-                    />
+                      <input
+                        type="checkbox"
+                        class="w-3 h-3"
+                        :checked="isAllSelected"
+                        @change.stop="toggleSelectAll($event.target.checked)"
+                      />
                     </th>
                     <th class="px-4 py-2 text-center w-16">번호</th>
                     <th class="px-4 py-2 text-left">아이디</th>
                     <th class="px-4 py-2 text-left">이름</th>
                     <th class="px-4 py-2 text-left">팀</th>
                     <th class="px-4 py-2 text-left">이메일</th>
+                    <th class="px-4 py-2 text-left">권한</th>
                     <th class="px-4 py-2 text-center">작업</th>
                   </tr>
                 </thead>
@@ -395,8 +518,19 @@ watch(
                     <td class="px-4 py-3 text-center">{{ index + 1 }}</td>
                     <td class="px-4 py-3 text-[#1565c0]">{{ user.userId }}</td>
                     <td class="px-4 py-3">{{ user.name }}</td>
-                    <td class="px-4 py-3">{{ user.team }}</td>
+                    <td class="px-4 py-3">{{ user.team || "-" }}</td>
                     <td class="px-4 py-3">{{ user.email }}</td>
+                    <td class="px-4 py-3">
+                      <span
+                        :class="{
+                          'text-red-600 font-bold': user.role === 'SUPER_ADMIN',
+                          'text-blue-600': user.role === 'ADMIN',
+                          'text-[#666]': user.role === 'USER',
+                        }"
+                      >
+                        {{ user.role }}
+                      </span>
+                    </td>
                     <td class="px-4 py-3 text-center">
                       <button
                         @click.stop="handleDeleteUser(user.id)"
@@ -414,6 +548,7 @@ watch(
       </div>
     </div>
 
+    <!-- 새 사용자 추가 모달 -->
     <div
       v-if="showUserModal"
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
@@ -470,10 +605,19 @@ watch(
               v-model="newUser.confirmPw"
               class="w-full px-3 py-1.5 border mt-1"
             />
-            <p v-if="newUser.confirmPw.length > 0 && newUser.confirmPw === newUser.password" class="text-green-600 text-[11px] mt-1">
+            <p
+              v-if="
+                newUser.confirmPw.length > 0 &&
+                newUser.confirmPw === newUser.password
+              "
+              class="text-green-600 text-[11px] mt-1"
+            >
               비밀번호가 일치합니다
             </p>
-            <p v-else-if="newUser.confirmPw.length > 0" class="text-red-600 text-[11px] mt-1">
+            <p
+              v-else-if="newUser.confirmPw.length > 0"
+              class="text-red-600 text-[11px] mt-1"
+            >
               비밀번호가 일치하지 않습니다
             </p>
           </div>
@@ -551,15 +695,26 @@ watch(
               class="w-full px-3 py-1.5 border mt-1"
             >
               <option value="">선택해주세요</option>
-              <option value="team_leader">팀장</option>
-              <option value="member">팀원</option>
+              <option value="SUPER_ADMIN">슈퍼 관리자</option>
+              <option value="ADMIN">관리자</option>
+              <option value="USER">사용자</option>
             </select>
           </div>
         </div>
 
         <div class="border-t px-4 py-3 flex justify-end gap-2">
-          <button class="px-4 py-1.5 bg-white border text-xs" @click="closeModal">취소</button>
-          <button class="px-4 py-1.5 bg-[#1565c0] text-white text-xs" @click="handleAddUser">추가</button>
+          <button
+            class="px-4 py-1.5 bg-white border text-xs"
+            @click="closeModal"
+          >
+            취소
+          </button>
+          <button
+            class="px-4 py-1.5 bg-[#1565c0] text-white text-xs"
+            @click="handleAddUser"
+          >
+            추가
+          </button>
         </div>
       </div>
     </div>

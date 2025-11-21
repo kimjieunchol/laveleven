@@ -1,54 +1,53 @@
 <script setup>
-import { ref, watch } from 'vue';
-import TopBar from '../components/TopBar.vue';
-import TabsBar from '../components/TabsBar.vue';
-import FormPanel from '../components/FormPanel.vue';
-import DocumentViewer from '../components/DocumentViewer.vue';
-import DataPanel from '../components/DataPanel.vue';
-import LoadView from '../components/LoadView.vue';
-import usePipeline from '../hooks/usePipeline';
+import { ref, watch } from "vue";
+import TopBar from "../components/TopBar.vue";
+import TabsBar from "../components/TabsBar.vue";
+import FormPanel from "../components/FormPanel.vue";
+import DocumentViewer from "../components/DocumentViewer.vue";
+import DataPanel from "../components/DataPanel.vue";
+import LoadView from "../components/LoadView.vue";
+import usePipeline from "../hooks/usePipeline";
 
 const props = defineProps({
-  onNavigate: {
-    type: Function,
-    required: true,
-  },
-  currentUser: {
-    type: Object,
-    default: null,
-  },
-  initialView: {
-    type: String,
-    default: 'new',
-  },
-  workData: {
-    type: Object,
-    default: null,
-  },
+  onNavigate: { type: Function, required: true },
+  currentUser: { type: Object, default: null },
+  initialView: { type: String, default: "new" },
+  workData: { type: Object, default: null },
 });
 
 const currentView = ref(props.initialView);
-const activeTab = ref('1. Scan');
-const { uploadedImage, ocrResult, isLoading, handlers, formData, setFormData } = usePipeline();
 
-// workData가 있고 new 뷰일 때만 formData 설정
+// ✅ usePipeline에서 activeTab과 setActiveTab 가져오기
+const {
+  uploadedImage,
+  ocrResult,
+  isLoading,
+  activeTab, // ✅ 추가
+  setActiveTab, // ✅ 추가
+  handlers,
+  formData,
+  setFormData,
+} = usePipeline();
+
+// ... watch 코드들 동일 ...
+
 watch(
   () => props.workData,
   (value) => {
-    if (value && currentView.value === 'new') {
+    if (value && currentView.value === "new") {
       setFormData({
-        id: value.id || '',
-        title: value.title || '',
-        productName: value.productName || '',
-        createdAt: value.createdAt || '',
-        createdBy: value.createdBy || props.currentUser?.userId || '',
-        version: value.version || '',
-        team: value.team || props.currentUser?.team || '',
-        updatedAt: value.updatedAt || '',
+        id: value.id || "",
+        title: value.title || "",
+        productName: value.productName || "",
+        createdAt: value.createdAt || "",
+        createdBy: value.createdBy || props.currentUser?.userId || "",
+        version: value.version || "",
+        team: value.team || props.currentUser?.team || "",
+        updatedAt: value.updatedAt || "",
       });
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 watch(
@@ -56,63 +55,56 @@ watch(
   (value) => {
     currentView.value = value;
   },
-  { immediate: true },
+  { immediate: true }
 );
 
-// currentView가 변경될 때 formData와 이미지 초기화
 watch(
   () => currentView.value,
   (newView, oldView) => {
-    // 뷰가 실제로 변경되었을 때만
     if (newView !== oldView) {
-      // 이미지 초기화
-      handlers.setUploadedImage(null);
-      
-      // formData 초기화 (빈 값으로)
+      handlers.setUploadedImage(null, null);
       setFormData({
-        id: '',
-        title: '',
-        productName: '',
-        createdAt: '',
-        createdBy: props.currentUser?.userId || '',
-        version: '',
-        team: props.currentUser?.team || '',
-        updatedAt: '',
+        id: "",
+        title: "",
+        productName: "",
+        createdAt: "",
+        createdBy: props.currentUser?.userId || "",
+        version: "",
+        team: props.currentUser?.team || "",
+        updatedAt: "",
       });
 
-      // new 뷰로 변경되고 workData가 있으면 다시 설정
-      if (newView === 'new' && props.workData) {
+      if (newView === "new" && props.workData) {
         setFormData({
-          id: props.workData.id || '',
-          title: props.workData.title || '',
-          productName: props.workData.productName || '',
-          createdAt: props.workData.createdAt || '',
-          createdBy: props.workData.createdBy || props.currentUser?.userId || '',
-          version: props.workData.version || '',
-          team: props.workData.team || props.currentUser?.team || '',
-          updatedAt: props.workData.updatedAt || '',
+          id: props.workData.id || "",
+          title: props.workData.title || "",
+          productName: props.workData.productName || "",
+          createdAt: props.workData.createdAt || "",
+          createdBy:
+            props.workData.createdBy || props.currentUser?.userId || "",
+          version: props.workData.version || "",
+          team: props.workData.team || props.currentUser?.team || "",
+          updatedAt: props.workData.updatedAt || "",
         });
       }
     }
-  },
+  }
 );
 
 const extractedData = [
-  { label: 'id', value: '' },
-  { label: 'selection', value: '' },
-  { label: 'missing', value: '' },
-  { label: 'answer', value: '' },
-  { label: 'reference', value: '' },
-  { label: 'source', value: '' },
+  { label: "id", value: "" },
+  { label: "selection", value: "" },
+  { label: "missing", value: "" },
+  { label: "answer", value: "" },
+  { label: "reference", value: "" },
+  { label: "source", value: "" },
 ];
 
 const setWorkspaceView = (view) => {
   currentView.value = view;
 };
 
-const setActiveTabValue = (tab) => {
-  activeTab.value = tab;
-};
+// ❌ 삭제: const setActiveTabValue = (tab) => { activeTab.value = tab; };
 </script>
 
 <template>
@@ -126,7 +118,7 @@ const setActiveTabValue = (tab) => {
 
     <TabsBar
       :active-tab="activeTab"
-      :set-active-tab="setActiveTabValue"
+      :set-active-tab="setActiveTab"
       :is-loading="isLoading"
       :on-rerun="handlers.handleRerun"
       :on-validate="handlers.handleValidate"

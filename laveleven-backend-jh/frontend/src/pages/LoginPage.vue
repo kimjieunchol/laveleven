@@ -1,42 +1,52 @@
 <script setup>
-import { ref } from 'vue';
+import { ref } from "vue";
+import { authAPI } from "../services/api";
 
 const props = defineProps({
   onLogin: {
     type: Function,
     required: true,
   },
-  users: {
-    type: Array,
-    default: () => [],
-  },
 });
 
-const username = ref('');
-const password = ref('');
+const username = ref("");
+const password = ref("");
+const isLoading = ref(false);
+const errorMessage = ref("");
 const idRegex = /^[a-zA-Z0-9]*$/;
 
-const handleSubmit = () => {
+const handleSubmit = async () => {
   if (!username.value || !password.value) {
-    alert('아이디와 비밀번호를 입력해주세요.');
+    errorMessage.value = "아이디와 비밀번호를 입력해주세요.";
     return;
   }
 
-  if (username.value === 'admin' && password.value === 'admin') {
-    props.onLogin({ userId: 'admin', team: '관리자' });
-    return;
+  isLoading.value = true;
+  errorMessage.value = "";
+
+  try {
+    const response = await authAPI.login(username.value, password.value);
+    const { accessToken, refreshToken } = response.data;
+
+    // 토큰 저장
+    localStorage.setItem("accessToken", accessToken);
+    localStorage.setItem("refreshToken", refreshToken);
+
+    // JWT 디코딩하여 사용자 정보 추출 (간단한 방법)
+    const payload = JSON.parse(atob(accessToken.split(".")[1]));
+
+    props.onLogin({
+      userId: payload.sub, // username
+      role: payload.role,
+      team: payload.department || "",
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    errorMessage.value =
+      error.response?.data?.error || "로그인에 실패했습니다.";
+  } finally {
+    isLoading.value = false;
   }
-
-  const matchedUser = props.users.find(
-    (u) => u.userId === username.value && u.password === password.value,
-  );
-
-  if (!matchedUser) {
-    alert('아이디 또는 비밀번호가 일치하지 않습니다.');
-    return;
-  }
-
-  props.onLogin(matchedUser);
 };
 
 const handleUsernameInput = (event) => {
@@ -51,6 +61,13 @@ const handleUsernameInput = (event) => {
     <div class="bg-white border border-[#e0e0e0] p-8 w-96 shadow-lg">
       <h1 class="text-2xl font-bold text-black mb-6 text-center">Labeleven</h1>
 
+      <div
+        v-if="errorMessage"
+        class="mb-4 p-2 bg-red-50 border border-red-200 text-red-600 text-xs rounded"
+      >
+        {{ errorMessage }}
+      </div>
+
       <div class="space-y-4">
         <div>
           <input
@@ -58,7 +75,8 @@ const handleUsernameInput = (event) => {
             :value="username"
             @input="handleUsernameInput"
             @keypress.enter="handleSubmit"
-            class="w-full px-3 py-2 border border-[#d0d0d0] text-sm focus:outline-none focus:border-[#1565c0]"
+            :disabled="isLoading"
+            class="w-full px-3 py-2 border border-[#d0d0d0] text-sm focus:outline-none focus:border-[#1565c0] disabled:bg-gray-100"
             placeholder="아이디"
           />
         </div>
@@ -68,16 +86,18 @@ const handleUsernameInput = (event) => {
             type="password"
             v-model="password"
             @keypress.enter="handleSubmit"
-            class="w-full px-3 py-2 border border-[#d0d0d0] text-sm focus:outline-none focus:border-[#1565c0]"
+            :disabled="isLoading"
+            class="w-full px-3 py-2 border border-[#d0d0d0] text-sm focus:outline-none focus:border-[#1565c0] disabled:bg-gray-100"
             placeholder="비밀번호"
           />
         </div>
 
         <button
           @click="handleSubmit"
-          class="w-full bg-[#1565c0] hover:bg-[#0d47a1] text-white py-2 text-sm mt-6"
+          :disabled="isLoading"
+          class="w-full bg-[#1565c0] hover:bg-[#0d47a1] text-white py-2 text-sm mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          로그인
+          {{ isLoading ? "로그인 중..." : "로그인" }}
         </button>
       </div>
     </div>

@@ -1,5 +1,5 @@
 <script setup>
-import { Upload } from 'lucide-vue-next';
+import { Upload } from "lucide-vue-next";
 
 const props = defineProps({
   uploadedImage: {
@@ -43,9 +43,10 @@ const handleImageUpload = async (event) => {
   const reader = new FileReader();
   reader.onload = async (loadEvent) => {
     const base64 = loadEvent.target?.result;
-    props.setUploadedImage(base64);
-    if (base64) {
-      await props.callOcr(base64);
+    // ✅ File 객체와 base64 둘 다 전달
+    props.setUploadedImage(file, base64);
+    if (file) {
+      await props.callOcr();
     }
   };
   reader.readAsDataURL(file);
@@ -54,7 +55,9 @@ const handleImageUpload = async (event) => {
 
 <template>
   <div class="flex-1 bg-white flex overflow-hidden">
-    <div class="w-[600px] flex flex-col border-r border-[#e0e0e0] flex-shrink-0 bg-white">
+    <div
+      class="w-[600px] flex flex-col border-r border-[#e0e0e0] flex-shrink-0 bg-white"
+    >
       <div class="bg-[#f5f5f5] border-b border-[#e0e0e0] px-4 py-2">
         <span class="text-black text-xs">원본 이미지</span>
       </div>
@@ -64,7 +67,12 @@ const handleImageUpload = async (event) => {
           class="cursor-pointer flex flex-col items-center justify-center w-full h-full hover:bg-[#fafafa]"
         >
           <Upload class="w-12 h-12 text-[#999]" />
-          <input type="file" accept="image/*" class="hidden" @change="handleImageUpload" />
+          <input
+            type="file"
+            accept="image/*"
+            class="hidden"
+            @change="handleImageUpload"
+          />
         </label>
         <img
           v-else
@@ -92,7 +100,10 @@ const handleImageUpload = async (event) => {
                 class="border-2 border-[#d0d0d0] shadow-lg max-w-full max-h-[60vh] object-contain"
               />
             </div>
-            <div v-if="props.ocrResult" class="space-y-3 text-xs max-w-4xl mx-auto">
+            <div
+              v-if="props.ocrResult"
+              class="space-y-3 text-xs max-w-4xl mx-auto"
+            >
               <div
                 v-for="(value, key) in props.ocrResult"
                 :key="key"
