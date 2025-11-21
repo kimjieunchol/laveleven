@@ -70,7 +70,7 @@ public class FoodLabelApiClient {
     public String generateHtml(HtmlGenerateRequest request) {
         return executeWithResilience(
             () -> foodLabelWebClient.post()
-                .uri("/generate_html")  // ✅ 수정: /html → /generate_html
+                .uri("/generate-html")  // ✅ 수정: /html → /generate_html
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .retrieve()
