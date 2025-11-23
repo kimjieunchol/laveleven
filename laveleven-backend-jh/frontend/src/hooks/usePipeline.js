@@ -66,12 +66,17 @@ export default function usePipeline() {
     error.value = null;
 
     try {
+      // texts가 문자열이면 배열로 변환
+      let textsArray = ocrResult.value.texts;
+      if (typeof textsArray === "string") {
+        textsArray = textsArray.split(",").map((t) => t.trim());
+      }
+
       const response = await pipelineAPI.processStructure({
-        texts: ocrResult.value.texts,
+        texts: textsArray,
         language: ocrResult.value.language || "korean",
         raw_data: {
-          // ✅ 추가
-          rec_texts: ocrResult.value.texts,
+          rec_texts: textsArray,
         },
       });
       structureResult.value = response.data;
